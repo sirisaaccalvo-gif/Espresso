@@ -1,5 +1,11 @@
 # Espresso — App Store Prep
 
+> **Status: shelved.** A market scan showed the macOS keep-awake category is saturated with
+> strong *free* apps (Amphetamine, Jolt of Caffeine "free forever", Owly, CoffeeTea, NeverNap,
+> …), so charging $1.99 wasn't worth it. Espresso is free + open source instead. This doc is
+> kept as a record of the analysis; the generated screenshots are reused in the README.
+
+
 Everything needed to list Espresso on the Mac App Store at **$1.99**. Copy is ready to paste;
 the checklist is ordered. One honest caveat up front: the final *packaging + upload* step
 needs **full Xcode** (distribution signing + Transporter/Organizer). The current Command-Line-
