@@ -16,6 +16,8 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
 </p>
 
+<p align="center"><sub>by <a href="https://isaaccalvo.com"><b>Isaac Calvo</b></a> · <a href="https://isaaccalvo.com">isaaccalvo.com</a></sub></p>
+
 > **Why isn't this on the App Store?** The keep-awake category is saturated with excellent
 > *free* apps (Amphetamine, Jolt of Caffeine, Owly, …), so there's no reason to charge for it.
 > Espresso is **free and open source** — build it from source below.
@@ -88,4 +90,4 @@ A small but complete native-macOS engineering sample:
   screenshots are all drawn procedurally (resolution-independent, regenerable via one command).
 
 ## License
-[MIT](LICENSE) © 2026 Isaac Calvo
+[MIT](LICENSE) © 2026 [Isaac Calvo](https://isaaccalvo.com)

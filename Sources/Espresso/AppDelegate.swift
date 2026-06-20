@@ -237,13 +237,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Espresso ☕"
-        alert.informativeText = "Keeps your Mac wide awake — one shot at a time.\n\nPick a brew (Ristretto to Bottomless), and the little cup sips it down as the timer runs. No Dock clutter; it lives in your menu bar.\n\nVersion 1.0"
+        alert.informativeText = "Keeps your Mac wide awake — one shot at a time.\n\nPick a brew (Ristretto to Bottomless), and the little cup sips it down as the timer runs. No Dock clutter; it lives in your menu bar.\n\nVersion 1.0 · by Isaac Calvo · isaaccalvo.com"
         if let data = MascotRenderer.png(pixels: 160, awake: true, background: true),
            let icon = NSImage(data: data) {
             alert.icon = icon
         }
         alert.addButton(withTitle: "Nice ☕")
-        alert.runModal()
+        alert.addButton(withTitle: "Website")
+        if alert.runModal() == .alertSecondButtonReturn,
+           let url = URL(string: "https://isaaccalvo.com") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func quit() {
