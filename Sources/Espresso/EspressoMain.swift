@@ -24,6 +24,9 @@ enum EspressoMain {
             DurationPopoverController().renderPreview(to: arguments[idx + 1])
             exit(0)
         }
+        if let idx = arguments.firstIndex(of: "--make-screenshots"), idx + 1 < arguments.count {
+            ScreenshotRenderer.make(dir: arguments[idx + 1])
+        }
 
         // Normal launch: menu-bar-only AppKit app.
         let app = NSApplication.shared
