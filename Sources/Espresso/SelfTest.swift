@@ -1,6 +1,8 @@
 import AppKit
 import EspressoKit
 
+#if ESPRESSO_DEVTOOLS
+
 /// `--selftest`: exercises the IOKit assertion path headlessly and prints the
 /// relevant `pmset -g assertions` lines before/after, so the core sleep-prevention
 /// mechanism can be verified from the command line without driving the menu UI.
@@ -86,3 +88,5 @@ enum IconExport {
         try? png.write(to: URL(fileURLWithPath: path))
     }
 }
+
+#endif

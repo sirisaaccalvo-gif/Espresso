@@ -18,6 +18,11 @@ let package = Package(
             name: "Espresso",
             dependencies: ["EspressoKit"],
             path: "Sources/Espresso",
+            swiftSettings: [
+                // Dev-only CLI modes (--selftest/--make-icon/--make-screenshots/--activate, etc.)
+                // compile ONLY in debug, so the release / App Store build ships none of them.
+                .define("ESPRESSO_DEVTOOLS", .when(configuration: .debug)),
+            ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("IOKit"),

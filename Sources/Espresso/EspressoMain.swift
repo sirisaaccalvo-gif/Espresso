@@ -7,9 +7,9 @@ enum EspressoMain {
 
     @MainActor
     static func main() {
+        #if ESPRESSO_DEVTOOLS
+        // Debug-only CLI modes for development/verification (excluded from release builds).
         let arguments = CommandLine.arguments
-
-        // Hidden CLI modes for development/verification — handled before the GUI starts.
         if arguments.contains("--selftest") {
             SelfTest.run()
         }
@@ -27,6 +27,7 @@ enum EspressoMain {
         if let idx = arguments.firstIndex(of: "--make-screenshots"), idx + 1 < arguments.count {
             ScreenshotRenderer.make(dir: arguments[idx + 1])
         }
+        #endif
 
         // Normal launch: menu-bar-only AppKit app.
         let app = NSApplication.shared

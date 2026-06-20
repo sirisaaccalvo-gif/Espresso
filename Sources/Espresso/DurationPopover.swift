@@ -86,8 +86,10 @@ final class DurationPopoverController: NSObject {
         return Calendar(identifier: .gregorian).date(from: comps) ?? Date(timeIntervalSinceReferenceDate: 0)
     }
 
+    #if ESPRESSO_DEVTOOLS
     /// Dev helper: render the popover content offscreen to a PNG so layout can be checked
-    /// without driving the menu by hand. (`--render-popover <path>`.)
+    /// without driving the menu by hand. (`--render-popover <path>`.) Used on a throwaway
+    /// controller that exits immediately, so reparenting the live view is harmless.
     func renderPreview(to path: String) {
         guard let view = popover.contentViewController?.view else { return }
         view.layoutSubtreeIfNeeded()
@@ -104,6 +106,7 @@ final class DurationPopoverController: NSObject {
             try? png.write(to: URL(fileURLWithPath: path))
         }
     }
+    #endif
 
     @objc private func startTapped() {
         let comps = Calendar(identifier: .gregorian).dateComponents([.hour, .minute], from: picker.dateValue)

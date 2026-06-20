@@ -48,6 +48,38 @@ let power = BatteryGuard.currentPowerState()
 if let p = power.percent { check((0...100).contains(p), "reported percent \(p) is 0–100") }
 else { check(true, "no battery percent (desktop) — ok") }
 
+group("BatteryOrchestrator.decideNap")
+do {
+    let off = BatteryOrchestrator.decideNap(enabled: false, power: PowerState(onBattery: true, percent: 5), threshold: 20)
+    check(off.shouldEnd == false, "disabled → no nap")
+    check(off.reason == nil, "disabled → no reason")
+
+    let ac = BatteryOrchestrator.decideNap(enabled: true, power: PowerState(onBattery: false, percent: 5), threshold: 20)
+    check(ac.shouldEnd == false, "on AC → no nap")
+
+    let low = BatteryOrchestrator.decideNap(enabled: true, power: PowerState(onBattery: true, percent: 18), threshold: 20)
+    check(low.shouldEnd == true, "battery 18% ≤ 20 → nap")
+    check(low.reason == "Napped to save battery (18%) 🪫", "reason includes the live percent")
+
+    let high = BatteryOrchestrator.decideNap(enabled: true, power: PowerState(onBattery: true, percent: 80), threshold: 20)
+    check(high.shouldEnd == false, "battery 80% → no nap")
+
+    let unknown = BatteryOrchestrator.decideNap(enabled: true, power: PowerState(onBattery: true, percent: nil), threshold: 20)
+    check(unknown.shouldEnd == false, "unknown % → no nap")
+}
+
+group("DurationLogic.parse")
+do {
+    // Mirrors AppDelegate's durationOptions seconds: presets, 0 = indefinite, -1 = custom.
+    let opts: [TimeInterval] = [900, 1800, 3600, 7200, 18000, 0, -1]
+    check(DurationLogic.parse(tag: 0, secondsOptions: opts) == .timed(900), "tag 0 → 15 min")
+    check(DurationLogic.parse(tag: 4, secondsOptions: opts) == .timed(18000), "tag 4 → 5 hours")
+    check(DurationLogic.parse(tag: 5, secondsOptions: opts) == .indefinite, "tag 5 → indefinite")
+    check(DurationLogic.parse(tag: 6, secondsOptions: opts) == .custom, "tag 6 → custom")
+    check(DurationLogic.parse(tag: 99, secondsOptions: opts) == nil, "out-of-range → nil")
+    check(DurationLogic.parse(tag: -1, secondsOptions: opts) == nil, "negative tag → nil")
+}
+
 group("KeepAwakeController (live IOKit assertions)")
 let c = KeepAwakeController()
 check(c.isActive == false, "starts inactive")

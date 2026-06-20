@@ -61,14 +61,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildMenu()
         refreshUI()
 
-        // Integration hook: `--activate <seconds>` auto-starts a timed session on launch
-        // (0 = indefinite), so the full activate→timer→assertion→auto-stop path can be
-        // exercised without driving the menu by hand.
+        #if ESPRESSO_DEVTOOLS
+        // Debug-only hook: `--activate <seconds>` auto-starts a session on launch (0 = indefinite)
+        // so the full activate→timer→assertion→auto-stop path can be exercised without the menu.
         let args = CommandLine.arguments
         if let idx = args.firstIndex(of: "--activate"), idx + 1 < args.count,
            let seconds = TimeInterval(args[idx + 1]) {
             activate(durationSeconds: seconds > 0 ? seconds : nil)
         }
+        #endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -172,14 +173,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func selectDuration(_ sender: NSMenuItem) {
-        let seconds = durationOptions[sender.tag].1
-        if seconds < 0 {
-            // Custom… — let the menu finish closing, then show the popover.
+        switch DurationLogic.parse(tag: sender.tag, secondsOptions: durationOptions.map { $0.1 }) {
+        case .custom:
+            // Let the menu finish closing, then show the popover.
             DispatchQueue.main.async { [weak self] in self?.showCustomDuration() }
-        } else if seconds == 0 {
+        case .indefinite:
             activate(durationSeconds: nil)
-        } else {
+        case .timed(let seconds):
             activate(durationSeconds: seconds)
+        case .none:
+            break
         }
     }
 
@@ -199,13 +202,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleBatterySaver() {
         Settings.autoSleepOnLowBattery.toggle()
-        if isActive { checkBattery() } // apply immediately if just enabled while low
+        if isActive {
+            if Settings.autoSleepOnLowBattery {
+                startBatteryTimer()  // begin polling and apply immediately
+                checkBattery()
+            } else {
+                stopBatteryTimer()   // don't keep polling when disabled
+            }
+        }
         refreshMenuChecks()
     }
 
     @objc private func selectThreshold(_ sender: NSMenuItem) {
         Settings.lowBatteryThreshold = batteryThresholds[sender.tag]
-        if isActive { checkBattery() }
+        if isActive, Settings.autoSleepOnLowBattery { checkBattery() } // timer already running
         refreshMenuChecks()
     }
 
@@ -257,7 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             timer.stop()
         }
-        startBatteryTimer()
+        if Settings.autoSleepOnLowBattery { startBatteryTimer() } else { stopBatteryTimer() }
         refreshUI()
     }
 
@@ -289,12 +299,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func checkBattery() {
         guard isActive, Settings.autoSleepOnLowBattery else { return }
-        let power = BatteryGuard.currentPowerState()
-        if BatteryGuard.shouldLetNap(enabled: true,
-                                     onBattery: power.onBattery,
-                                     percent: power.percent,
-                                     threshold: Settings.lowBatteryThreshold) {
-            deactivate(napNote: "Napped to save battery (\(power.percent ?? Settings.lowBatteryThreshold)%) 🪫")
+        let decision = BatteryOrchestrator.decideNap(
+            enabled: Settings.autoSleepOnLowBattery,
+            power: BatteryGuard.currentPowerState(),
+            threshold: Settings.lowBatteryThreshold)
+        if decision.shouldEnd {
+            deactivate(napNote: decision.reason)
         }
     }
 

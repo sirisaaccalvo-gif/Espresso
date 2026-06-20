@@ -13,11 +13,11 @@ enum CupIconRenderer {
     static func cupImage(fill: CGFloat, active: Bool, size: CGFloat = 18) -> NSImage {
         let image = NSImage(size: NSSize(width: size, height: size))
         image.lockFocus()
+        defer { image.unlockFocus() }
         let transform = NSAffineTransform()
         transform.scale(by: size / 18.0)
         transform.concat()
         drawCup(fill: fill, active: active)
-        image.unlockFocus()
         image.isTemplate = true
         return image
     }

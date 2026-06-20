@@ -1,6 +1,8 @@
 import AppKit
 import EspressoKit
 
+#if ESPRESSO_DEVTOOLS
+
 /// `--make-screenshots <dir>`: renders a branded App Store screenshot set (2560×1600, 16:10).
 /// Programmatic so the set stays consistent and high-res; reuses the mascot + cup art.
 @MainActor
@@ -194,3 +196,5 @@ enum ScreenshotRenderer {
         }
     }
 }
+
+#endif

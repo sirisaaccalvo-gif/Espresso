@@ -134,6 +134,8 @@ enum MascotRenderer {
     }
 }
 
+#if ESPRESSO_DEVTOOLS
+
 /// `--make-icon <dir>`: writes preview PNGs plus a full `AppIcon.iconset` for `iconutil`.
 enum AppIconExport {
     @MainActor
@@ -167,3 +169,5 @@ enum AppIconExport {
         try? data.write(to: URL(fileURLWithPath: path))
     }
 }
+
+#endif
