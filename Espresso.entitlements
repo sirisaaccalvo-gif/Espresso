@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Entitlements for the MAC APP STORE (sandboxed) build only.
+      The personal/local build (scripts/build_app.sh) is ad-hoc signed and NOT sandboxed.
+
+      This app needs NO special entitlements beyond the sandbox itself:
+        • IOKit power assertions (IOPMAssertionCreateWithName) are whitelisted in the
+          App Sandbox — no entitlement required.
+        • SMAppService launch-at-login works for a sandboxed main app.
+        • No network, file, or device access is used.
+    -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+</dict>
+</plist>

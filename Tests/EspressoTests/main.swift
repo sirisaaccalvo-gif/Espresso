@@ -1,0 +1,71 @@
+import Foundation
+import EspressoKit
+
+// Dependency-free test runner (XCTest/Testing aren't available with Command Line Tools only).
+// Run with:  swift run EspressoTests   — exits non-zero if any check fails.
+
+var failures = 0
+var groups = 0
+
+func group(_ name: String) { groups += 1; print("\n• \(name)") }
+func check(_ condition: Bool, _ message: String) {
+    if condition { print("  ✓ \(message)") }
+    else { print("  ✗ FAIL — \(message)"); failures += 1 }
+}
+func eq<T: Equatable>(_ got: T, _ want: T, _ message: String) {
+    check(got == want, "\(message)  (got \(got), want \(want))")
+}
+
+group("TimeFormatting.abbreviated")
+eq(TimeFormatting.abbreviated(0), "0s", "0 → 0s")
+eq(TimeFormatting.abbreviated(45), "45s", "45 → 45s")
+eq(TimeFormatting.abbreviated(60), "1m", "60 → 1m")
+eq(TimeFormatting.abbreviated(905), "15m", "905 → 15m")
+eq(TimeFormatting.abbreviated(3600), "1h", "3600 → 1h")
+eq(TimeFormatting.abbreviated(3660), "1h 1m", "3660 → 1h 1m")
+eq(TimeFormatting.abbreviated(7200), "2h", "7200 → 2h")
+eq(TimeFormatting.abbreviated(18000), "5h", "18000 → 5h")
+eq(TimeFormatting.abbreviated(-5), "0s", "negative clamps → 0s")
+
+group("TimeFormatting.clock")
+eq(TimeFormatting.clock(0), "0:00", "0 → 0:00")
+eq(TimeFormatting.clock(75), "1:15", "75 → 1:15")
+eq(TimeFormatting.clock(615), "10:15", "615 → 10:15")
+eq(TimeFormatting.clock(3661), "1:01:01", "3661 → 1:01:01")
+eq(TimeFormatting.clock(7325), "2:02:05", "7325 → 2:02:05")
+
+group("BatteryGuard.shouldLetNap")
+check(BatteryGuard.shouldLetNap(enabled: false, onBattery: true, percent: 5, threshold: 20) == false, "disabled never naps")
+check(BatteryGuard.shouldLetNap(enabled: true, onBattery: false, percent: 5, threshold: 20) == false, "on AC never naps")
+check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: nil, threshold: 20) == false, "unknown % never naps")
+check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 20, threshold: 20) == true, "naps at threshold")
+check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 10, threshold: 20) == true, "naps below threshold")
+check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 21, threshold: 20) == false, "stays awake just above")
+check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 100, threshold: 20) == false, "stays awake at full")
+
+group("BatteryGuard.currentPowerState (live IOKit)")
+let power = BatteryGuard.currentPowerState()
+if let p = power.percent { check((0...100).contains(p), "reported percent \(p) is 0–100") }
+else { check(true, "no battery percent (desktop) — ok") }
+
+group("KeepAwakeController (live IOKit assertions)")
+let c = KeepAwakeController()
+check(c.isActive == false, "starts inactive")
+c.start(keepDisplayAwake: false)
+check(c.isActive == true, "active after start")
+c.setDisplayAwake(true)
+check(c.isActive == true, "still active after adding display assertion")
+c.setDisplayAwake(false)
+check(c.isActive == true, "still active after removing display assertion (system never dropped)")
+c.start(keepDisplayAwake: true)
+check(c.isActive == true, "re-start is idempotent")
+c.stop()
+check(c.isActive == false, "inactive after stop")
+let c2 = KeepAwakeController()
+c2.setDisplayAwake(true)
+check(c2.isActive == false, "setDisplayAwake is a no-op while inactive")
+
+print(failures == 0
+      ? "\n✅ All checks passed (\(groups) groups)"
+      : "\n❌ \(failures) check(s) FAILED")
+exit(failures == 0 ? 0 : 1)

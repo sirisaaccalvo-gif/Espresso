@@ -1,0 +1,15 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Built app bundle (regenerate with scripts/build_app.sh)
+Espresso.app/
+
+# macOS
+.DS_Store
+
+# Xcode (if added later)
+xcuserdata/
+*.xcuserstate
+DerivedData/
