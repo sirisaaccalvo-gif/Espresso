@@ -266,13 +266,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         isActive = true
         currentDurationSeconds = durationSeconds
         controller.start(keepDisplayAwake: Settings.keepDisplayAwake)
+        maybeShowLidSetupNotice()
         if let seconds = durationSeconds {
             timer.start(seconds: seconds)
         } else {
             timer.stop()
         }
-        if Settings.autoSleepOnLowBattery { startBatteryTimer() } else { stopBatteryTimer() }
+        if Settings.autoSleepOnLowBattery {
+            startBatteryTimer()
+            checkBattery() // nap right away if we're already at/under the threshold on battery
+        } else {
+            stopBatteryTimer()
+        }
         refreshUI()
+    }
+
+    /// One-time, laptop-only nudge: closing the lid only keeps the Mac awake once the user enables
+    /// macOS's "prevent sleep when the display is off" setting (we can't toggle it without root).
+    /// Shown the first time a session starts; never nags again.
+    private func maybeShowLidSetupNotice() {
+        guard !Settings.didShowLidSetup else { return }
+        // Desktops have no lid; only laptops report a battery percentage.
+        guard BatteryGuard.currentPowerState().percent != nil else { return }
+        Settings.didShowLidSetup = true
+
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Keep awake with the lid closed"
+        alert.informativeText = "Espresso can keep your Mac running with the lid closed and the screen off — while it’s plugged in.\n\nTurn on “Prevent automatic sleeping when the display is off” in System Settings ▸ Displays to enable it. (On battery, closing the lid still sleeps to save power.)"
+        alert.addButton(withTitle: "Open Display Settings")
+        alert.addButton(withTitle: "OK")
+        if alert.runModal() == .alertFirstButtonReturn {
+            // Try the modern pane id first, then the legacy one.
+            for string in ["x-apple.systempreferences:com.apple.Displays-Settings.extension",
+                           "x-apple.systempreferences:com.apple.preference.displays"] {
+                if let url = URL(string: string), NSWorkspace.shared.open(url) { break }
+            }
+        }
     }
 
     private func deactivate(napNote: String? = nil) {

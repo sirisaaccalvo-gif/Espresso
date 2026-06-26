@@ -28,6 +28,9 @@
   custom hours+minutes dial.
 - Live **countdown** in the menu bar; the espresso cup **drains** as time runs out.
 - Optional **keep the display awake too** (otherwise only the system stays awake).
+- **Survives a closed lid:** while plugged in, closing the lid keeps your Mac awake with the
+  screen off — enable *“Prevent automatic sleeping when the display is off”* in
+  System Settings ▸ Displays. (On battery, closing the lid still sleeps to save power.)
 - **Battery safety:** automatically lets your Mac nap when on battery and the charge hits a
   chosen threshold (default 20%) — a forgotten session can't drain you flat.
 - **Launch at login.**
@@ -43,6 +46,9 @@
 Uses IOKit **power assertions** (`IOPMAssertionCreateWithName`) — the same mechanism as macOS's
 built-in `caffeinate`. `PreventUserIdleSystemSleep` keeps the system awake while letting the
 display sleep; `PreventUserIdleDisplaySleep` is added when “keep display awake” is on.
+`PreventSystemSleep` is also held so closing the lid doesn't sleep the Mac — this takes effect on
+AC power once *“Prevent automatic sleeping when the display is off”* is enabled in
+System Settings ▸ Displays (it's a no-op on battery).
 Assertions are always released on quit. Launch-at-login uses `SMAppService` (macOS 13+).
 
 ## Build & run

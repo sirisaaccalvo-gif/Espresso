@@ -13,7 +13,7 @@ enum SelfTest {
         printAssertions(label: "BEFORE start")
 
         controller.start(keepDisplayAwake: true)
-        printAssertions(label: "AFTER start (system + display)")
+        printAssertions(label: "AFTER start (system + prevent-system-sleep + display)")
 
         Thread.sleep(forTimeInterval: 1.0)
 
@@ -42,7 +42,7 @@ enum SelfTest {
         let relevant = output
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.contains("PreventUserIdle") }
+            .filter { $0.contains("PreventUserIdle") || $0.contains("PreventSystemSleep") }
         print("--- \(label) ---")
         if relevant.isEmpty {
             print("  (no PreventUserIdle assertions held)")

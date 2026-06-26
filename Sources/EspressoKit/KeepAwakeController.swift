@@ -6,10 +6,15 @@ import IOKit.pwr_mgt
 ///
 /// `PreventUserIdleSystemSleep` keeps the system awake while letting the display
 /// sleep (`caffeinate -i`); `PreventUserIdleDisplaySleep` keeps the display — and
-/// therefore the system — awake (`caffeinate -d`). Always pair create with release.
+/// therefore the system — awake (`caffeinate -d`). `PreventSystemSleep` (`caffeinate -s`)
+/// additionally keeps the Mac awake when the lid is **closed** — but only on AC power, and
+/// only when "Prevent automatic sleeping when the display is off" is enabled in
+/// System Settings ▸ Displays (it's a no-op on battery). Always pair create with release.
 public final class KeepAwakeController {
     private var systemAssertion: IOPMAssertionID = 0
     private var displayAssertion: IOPMAssertionID = 0
+    /// Survives lid-close on AC power; see the type doc above. Held for the whole session.
+    private var preventSystemSleepAssertion: IOPMAssertionID = 0
     public private(set) var isActive = false
 
     public init() {}
@@ -18,6 +23,9 @@ public final class KeepAwakeController {
     public func start(keepDisplayAwake: Bool, reason: String = "Espresso is keeping your Mac awake") {
         stop()
         systemAssertion = createAssertion(kIOPMAssertionTypePreventUserIdleSystemSleep, reason)
+        // Also hold PreventSystemSleep so closing the lid doesn't sleep the Mac (AC only;
+        // ignored on battery). Held alongside the idle assertion, which still covers battery.
+        preventSystemSleepAssertion = createAssertion(kIOPMAssertionTypePreventSystemSleep, reason)
         if keepDisplayAwake {
             displayAssertion = createAssertion(kIOPMAssertionTypePreventUserIdleDisplaySleep, reason)
         }
@@ -44,6 +52,10 @@ public final class KeepAwakeController {
         if systemAssertion != 0 {
             IOPMAssertionRelease(systemAssertion)
             systemAssertion = 0
+        }
+        if preventSystemSleepAssertion != 0 {
+            IOPMAssertionRelease(preventSystemSleepAssertion)
+            preventSystemSleepAssertion = 0
         }
         if displayAssertion != 0 {
             IOPMAssertionRelease(displayAssertion)

@@ -10,11 +10,18 @@ enum Settings {
         static let showCountdown = "showCountdown"
         static let autoSleepOnLowBattery = "autoSleepOnLowBattery"
         static let lowBatteryThreshold = "lowBatteryThreshold"
+        static let didShowLidSetup = "didShowLidSetup"
     }
 
     static var keepDisplayAwake: Bool {
         get { defaults.bool(forKey: Key.keepDisplayAwake) }
         set { defaults.set(newValue, forKey: Key.keepDisplayAwake) }
+    }
+
+    /// Whether the one-time "keep awake with the lid closed" setup notice has been shown.
+    static var didShowLidSetup: Bool {
+        get { defaults.bool(forKey: Key.didShowLidSetup) }
+        set { defaults.set(newValue, forKey: Key.didShowLidSetup) }
     }
 
     /// Defaults to `true` (showing the countdown is the more useful default).
