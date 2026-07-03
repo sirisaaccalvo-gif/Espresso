@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // UI
     private var statusItem: NSStatusItem!
     private var statusHeaderItem: NSMenuItem!
+    private var batteryLidNoticeItem: NSMenuItem!
     private var keepAwakeItem: NSMenuItem!
     private var durationItems: [NSMenuItem] = []
     private var keepDisplayItem: NSMenuItem!
@@ -85,6 +86,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusHeaderItem = NSMenuItem(title: "Sleeping normally", action: nil, keyEquivalent: "")
         statusHeaderItem.isEnabled = false
         menu.addItem(statusHeaderItem)
+
+        // Persistent reminder (not the one-time setup alert) shown whenever a session is
+        // active on battery — closing the lid still sleeps the Mac in that case, and a
+        // dialog shown once at first-ever launch is too easy to forget by the time it matters.
+        batteryLidNoticeItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        batteryLidNoticeItem.isEnabled = false
+        batteryLidNoticeItem.isHidden = true
+        menu.addItem(batteryLidNoticeItem)
 
         menu.addItem(.separator())
 
@@ -342,6 +351,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Refreshed every time the menu opens (see `menuWillOpen`) and on every activate/deactivate/
+    /// toggle, so it reflects live power state rather than a snapshot from when the session started.
+    private func refreshBatteryLidNotice() {
+        let show = BatteryGuard.shouldShowLidNotice(isActive: isActive, power: BatteryGuard.currentPowerState())
+        batteryLidNoticeItem?.isHidden = !show
+        batteryLidNoticeItem?.title = show ? "Lid close still sleeps the Mac on battery ⚠️" : ""
+    }
+
     // MARK: - UI updates
 
     private func handleTick(remaining: TimeInterval, total: TimeInterval) {
@@ -384,6 +401,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func refreshMenuChecks() {
+        refreshBatteryLidNotice()
+
         keepAwakeItem?.state = isActive ? .on : .off
 
         let activeSeconds = currentDurationSeconds

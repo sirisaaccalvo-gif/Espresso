@@ -43,6 +43,12 @@ check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 10, thr
 check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 21, threshold: 20) == false, "stays awake just above")
 check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 100, threshold: 20) == false, "stays awake at full")
 
+group("BatteryGuard.shouldShowLidNotice")
+check(BatteryGuard.shouldShowLidNotice(isActive: false, power: PowerState(onBattery: true, percent: 50)) == false, "inactive session never shows")
+check(BatteryGuard.shouldShowLidNotice(isActive: true, power: PowerState(onBattery: false, percent: 50)) == false, "on AC never shows")
+check(BatteryGuard.shouldShowLidNotice(isActive: true, power: PowerState(onBattery: true, percent: nil)) == false, "desktop (no battery) never shows")
+check(BatteryGuard.shouldShowLidNotice(isActive: true, power: PowerState(onBattery: true, percent: 50)) == true, "active + on battery + laptop shows")
+
 group("BatteryGuard.currentPowerState (live IOKit)")
 let power = BatteryGuard.currentPowerState()
 if let p = power.percent { check((0...100).contains(p), "reported percent \(p) is 0–100") }

@@ -23,6 +23,14 @@ public enum BatteryGuard {
         return percent <= threshold
     }
 
+    /// Pure decision (unit-tested): whether to show the persistent menu reminder that
+    /// closing the lid still sleeps the Mac while on battery. True only for an active
+    /// session, currently on battery, on a machine that has a battery (laptops only —
+    /// desktops report no percent).
+    public static func shouldShowLidNotice(isActive: Bool, power: PowerState) -> Bool {
+        isActive && power.onBattery && power.percent != nil
+    }
+
     /// Live power-source snapshot via IOKit. Desktops (no battery) report onBattery=false.
     public static func currentPowerState() -> PowerState {
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
