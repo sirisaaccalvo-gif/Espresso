@@ -271,9 +271,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func activate(durationSeconds: TimeInterval?) {
         lastNapNote = nil
+        guard controller.start(keepDisplayAwake: Settings.keepDisplayAwake) else {
+            // IOKit refused the assertion — say so instead of claiming "Wide awake".
+            deactivate(napNote: "Couldn't keep your Mac awake ⚠️")
+            return
+        }
         isActive = true
         currentDurationSeconds = durationSeconds
-        controller.start(keepDisplayAwake: Settings.keepDisplayAwake)
         if let seconds = durationSeconds {
             timer.start(seconds: seconds)
         } else {

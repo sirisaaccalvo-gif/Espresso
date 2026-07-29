@@ -10,18 +10,32 @@ import IOKit.pwr_mgt
 public final class KeepAwakeController {
     private var systemAssertion: IOPMAssertionID = 0
     private var displayAssertion: IOPMAssertionID = 0
-    public private(set) var isActive = false
+
+    /// True only while a system assertion is actually held — computed from the
+    /// assertion ID so the UI can never claim "awake" when creation failed.
+    public var isActive: Bool { systemAssertion != 0 }
 
     public init() {}
 
-    /// Start preventing sleep. Idempotent — re-starting releases and recreates assertions.
-    public func start(keepDisplayAwake: Bool, reason: String = "Espresso is keeping your Mac awake") {
-        stop()
-        systemAssertion = createAssertion(kIOPMAssertionTypePreventUserIdleSystemSleep, reason)
-        if keepDisplayAwake {
-            displayAssertion = createAssertion(kIOPMAssertionTypePreventUserIdleDisplaySleep, reason)
+    /// Start preventing sleep. Idempotent — re-starting swaps in fresh assertions,
+    /// creating the new ones **before** releasing the old so a mid-session restart
+    /// never momentarily drops sleep protection. Returns false when no system
+    /// assertion could be created or kept — i.e. the Mac is NOT being kept awake.
+    @discardableResult
+    public func start(keepDisplayAwake: Bool, reason: String = "Espresso is keeping your Mac awake") -> Bool {
+        let oldSystem = systemAssertion
+        let oldDisplay = displayAssertion
+        let newSystem = createAssertion(kIOPMAssertionTypePreventUserIdleSystemSleep, reason)
+        if newSystem == 0 {
+            // Creation failed — keep whatever was already held and report honestly.
+            return systemAssertion != 0
         }
-        isActive = true
+        systemAssertion = newSystem
+        displayAssertion = keepDisplayAwake
+            ? createAssertion(kIOPMAssertionTypePreventUserIdleDisplaySleep, reason) : 0
+        if oldSystem != 0 { IOPMAssertionRelease(oldSystem) }
+        if oldDisplay != 0 { IOPMAssertionRelease(oldDisplay) }
+        return true
     }
 
     /// Add or remove ONLY the display assertion, leaving the system assertion untouched.
@@ -49,7 +63,6 @@ public final class KeepAwakeController {
             IOPMAssertionRelease(displayAssertion)
             displayAssertion = 0
         }
-        isActive = false
     }
 
     private func createAssertion(_ type: String, _ reason: String) -> IOPMAssertionID {
