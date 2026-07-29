@@ -1,4 +1,5 @@
 import Foundation
+import IOKit.ps
 import EspressoKit
 
 // Dependency-free test runner (XCTest/Testing aren't available with Command Line Tools only).
@@ -42,6 +43,37 @@ check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 20, thr
 check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 10, threshold: 20) == true, "naps below threshold")
 check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 21, threshold: 20) == false, "stays awake just above")
 check(BatteryGuard.shouldLetNap(enabled: true, onBattery: true, percent: 100, threshold: 20) == false, "stays awake at full")
+
+group("BatteryGuard.powerState(fromDescriptions:)")
+do {
+    let typeKey = kIOPSTypeKey as String
+    let stateKey = kIOPSPowerSourceStateKey as String
+    let currentKey = kIOPSCurrentCapacityKey as String
+    let maximumKey = kIOPSMaxCapacityKey as String
+    let internalType = kIOPSInternalBatteryType as String
+    let battPower = kIOPSBatteryPowerValue as String
+    let acPower = kIOPSACPowerValue as String
+
+    check(BatteryGuard.powerState(fromDescriptions: []) == PowerState(onBattery: false, percent: nil),
+          "no sources (or none parsable) → on AC, unknown %")
+
+    let onBattery: [String: Any] = [typeKey: internalType, stateKey: battPower, currentKey: 47, maximumKey: 93]
+    let parsed = BatteryGuard.powerState(fromDescriptions: [onBattery])
+    check(parsed.onBattery == true, "internal battery discharging → on battery")
+    eq(parsed.percent, 51, "percent rounds from raw capacities (47/93 → 51)")
+
+    let charging: [String: Any] = [typeKey: internalType, stateKey: acPower, currentKey: 90, maximumKey: 100]
+    check(BatteryGuard.powerState(fromDescriptions: [charging]) == PowerState(onBattery: false, percent: 90),
+          "internal battery on AC → not on battery")
+
+    let ups: [String: Any] = [typeKey: kIOPSUPSType as String, stateKey: battPower, currentKey: 10, maximumKey: 100]
+    check(BatteryGuard.powerState(fromDescriptions: [ups, charging]) == PowerState(onBattery: false, percent: 90),
+          "internal battery wins over a UPS listed first")
+
+    let noCapacity: [String: Any] = [typeKey: internalType, stateKey: battPower]
+    check(BatteryGuard.powerState(fromDescriptions: [noCapacity]) == PowerState(onBattery: true, percent: nil),
+          "missing capacity keys → nil percent")
+}
 
 group("BatteryGuard.currentPowerState (live IOKit)")
 let power = BatteryGuard.currentPowerState()

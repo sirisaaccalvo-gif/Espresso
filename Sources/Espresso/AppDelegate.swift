@@ -283,7 +283,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             timer.stop()
         }
-        if Settings.autoSleepOnLowBattery { startBatteryTimer() } else { stopBatteryTimer() }
+        if Settings.autoSleepOnLowBattery {
+            startBatteryTimer()
+            checkBattery() // don't wait 30s — a session started at low battery naps at once
+        } else {
+            stopBatteryTimer()
+        }
         refreshUI()
     }
 
@@ -304,6 +309,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let t = Timer(timeInterval: batteryPollInterval, repeats: true) { [weak self] _ in
             self?.checkBattery()
         }
+        t.tolerance = 5 // loose polling — cheaper on the very battery it protects
         RunLoop.main.add(t, forMode: .common)
         batteryTimer = t
     }
