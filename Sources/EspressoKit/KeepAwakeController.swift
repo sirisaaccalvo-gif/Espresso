@@ -15,6 +15,9 @@ public final class KeepAwakeController {
     /// assertion ID so the UI can never claim "awake" when creation failed.
     public var isActive: Bool { systemAssertion != 0 }
 
+    /// True only while a display assertion is actually held, for the same reason.
+    public var isDisplayActive: Bool { displayAssertion != 0 }
+
     public init() {}
 
     /// Start preventing sleep. Idempotent — re-starting swaps in fresh assertions,
@@ -31,26 +34,43 @@ public final class KeepAwakeController {
             return systemAssertion != 0
         }
         systemAssertion = newSystem
-        displayAssertion = keepDisplayAwake
-            ? createAssertion(kIOPMAssertionTypePreventUserIdleDisplaySleep, reason) : 0
+        if keepDisplayAwake {
+            let newDisplay = createAssertion(kIOPMAssertionTypePreventUserIdleDisplaySleep, reason)
+            if newDisplay != 0 {
+                displayAssertion = newDisplay
+                if oldDisplay != 0 { IOPMAssertionRelease(oldDisplay) }
+            } else {
+                // Replacement failed — keep the old display assertion (if any)
+                // rather than dropping display coverage mid-session.
+                displayAssertion = oldDisplay
+            }
+        } else {
+            displayAssertion = 0
+            if oldDisplay != 0 { IOPMAssertionRelease(oldDisplay) }
+        }
         if oldSystem != 0 { IOPMAssertionRelease(oldSystem) }
-        if oldDisplay != 0 { IOPMAssertionRelease(oldDisplay) }
         return true
     }
 
     /// Add or remove ONLY the display assertion, leaving the system assertion untouched.
     /// Used for a mid-session "keep display awake" toggle so we never momentarily drop the
     /// core keep-the-system-awake guarantee (the fix for the stop-then-start window).
-    public func setDisplayAwake(_ on: Bool, reason: String = "Espresso is keeping your Mac awake") {
-        guard isActive else { return }
+    /// Returns whether the requested display state is now in effect, so the UI can
+    /// refuse to show a checkmark for coverage that IOKit declined to provide.
+    @discardableResult
+    public func setDisplayAwake(_ on: Bool, reason: String = "Espresso is keeping your Mac awake") -> Bool {
+        guard isActive else { return !on }
         if on {
             if displayAssertion == 0 {
                 displayAssertion = createAssertion(kIOPMAssertionTypePreventUserIdleDisplaySleep, reason)
             }
-        } else if displayAssertion != 0 {
+            return displayAssertion != 0
+        }
+        if displayAssertion != 0 {
             IOPMAssertionRelease(displayAssertion)
             displayAssertion = 0
         }
+        return true
     }
 
     /// Release all assertions. Safe to call repeatedly.

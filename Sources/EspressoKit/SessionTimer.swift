@@ -67,4 +67,8 @@ public final class SessionTimer {
         endDate = nil
         totalSeconds = 0
     }
+
+    // The run loop retains the Timer, not the other way round — invalidate so a
+    // discarded running SessionTimer doesn't leave a repeating no-op registered.
+    deinit { timer?.invalidate() }
 }

@@ -52,7 +52,8 @@ final class DurationPopoverController: NSObject {
         picker.action = #selector(pickerChanged)
         picker.isContinuous = true // typed edits update Brew's enabled state as they happen
 
-        let hint = NSTextField(labelWithString: "hours : minutes")
+        // The HH:MM dial tops out at 23:59 — say so, and point past it.
+        let hint = NSTextField(labelWithString: "hours : minutes — up to 23:59 (Bottomless for more)")
         hint.font = .systemFont(ofSize: 10)
         hint.textColor = .secondaryLabelColor
 

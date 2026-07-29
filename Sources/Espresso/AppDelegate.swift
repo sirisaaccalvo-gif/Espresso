@@ -61,10 +61,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // A forced sleep (lid close) pauses timers; re-sync on wake so an
         // overdue session ends immediately instead of overrunning wall-clock.
+        // The battery can also drain past the threshold while asleep, so check
+        // it right away too instead of waiting out the next poll interval.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.timer.resync()
+            self?.checkBattery()
         }
 
         buildMenu()
@@ -139,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let thresholdParent = NSMenuItem(title: "Low-battery threshold", action: nil, keyEquivalent: "")
         let thresholdMenu = NSMenu()
+        // Manually enabled so the percentages can gray out while the saver is off.
+        thresholdMenu.autoenablesItems = false
         for (index, pct) in batteryThresholds.enumerated() {
             let item = NSMenuItem(title: "\(pct)%", action: #selector(selectThreshold(_:)), keyEquivalent: "")
             item.target = self
@@ -199,7 +204,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Settings.keepDisplayAwake.toggle()
         if isActive {
             // Add/remove only the display assertion — never drop the system one mid-session.
-            controller.setDisplayAwake(Settings.keepDisplayAwake)
+            if !controller.setDisplayAwake(Settings.keepDisplayAwake) {
+                // IOKit refused — revert so the checkmark never claims coverage we don't have.
+                Settings.keepDisplayAwake.toggle()
+                NSSound.beep()
+            }
         }
         refreshMenuChecks()
     }
@@ -246,7 +255,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activateForEspresso()
         let alert = NSAlert()
         alert.messageText = "Espresso ☕"
-        alert.informativeText = "Keeps your Mac wide awake — one shot at a time.\n\nPick a brew (Ristretto to Bottomless), and the little cup sips it down as the timer runs. No Dock clutter; it lives in your menu bar.\n\nVersion 1.0 · by Isaac Calvo · isaaccalvo.com"
+        // Read the version from the bundle so About can't drift from Info.plist.
+        // (`swift run` has no bundle plist — fall back rather than show "unknown".)
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        alert.informativeText = "Keeps your Mac wide awake — one shot at a time.\n\nPick a brew (Ristretto to Bottomless), and the little cup sips it down as the timer runs. No Dock clutter; it lives in your menu bar.\n\nVersion \(version) · by Isaac Calvo · isaaccalvo.com"
         if let data = MascotRenderer.png(pixels: 160, awake: true, background: true),
            let icon = NSImage(data: data) {
             alert.icon = icon
@@ -275,6 +287,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard controller.start(keepDisplayAwake: Settings.keepDisplayAwake) else {
             // IOKit refused the assertion — say so instead of claiming "Wide awake".
             deactivate(napNote: "Couldn't keep your Mac awake ⚠️")
+            // The menu just closed, so a header note alone would go unseen — the
+            // primary action failing warrants an alert.
+            NSApp.activateForEspresso()
+            let alert = NSAlert()
+            alert.messageText = "Couldn't keep your Mac awake"
+            alert.informativeText = "macOS refused the power assertion Espresso needs. Try again in a moment; if it keeps happening, a restart usually clears it."
+            alert.runModal()
             return
         }
         isActive = true
@@ -360,10 +379,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         button.image = CupIconRenderer.cupImage(fill: fill, active: isActive)
 
-        // Hovering (or VoiceOver) answers "how long is left?" without opening the menu.
-        let tip = StatusText.toolTip(isActive: isActive, remaining: countdown)
-        button.toolTip = tip
-        button.setAccessibilityLabel(tip)
+        // Hovering (or VoiceOver) answers "how long is left?" — and, once idle,
+        // "why did it stop?" — without opening the menu. Only set on change:
+        // re-announcing an accessibility label every tick is hostile to VoiceOver.
+        let tip = StatusText.toolTip(isActive: isActive, remaining: countdown, napNote: lastNapNote)
+        if button.toolTip != tip {
+            button.toolTip = tip
+            button.setAccessibilityLabel(tip)
+        }
 
         if isActive, Settings.showCountdown, let countdown = countdown {
             let font = NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular)
@@ -392,6 +415,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         batterySaverItem?.state = Settings.autoSleepOnLowBattery ? .on : .off
         for (index, item) in batteryThresholdItems.enumerated() {
             item.state = (batteryThresholds[index] == Settings.lowBatteryThreshold) ? .on : .off
+            // Grayed-out percentages read as what they are: inert while the saver is off.
+            item.isEnabled = Settings.autoSleepOnLowBattery
         }
         launchAtLoginItem?.state = LaunchAtLogin.isEnabled ? .on : .off
     }

@@ -27,6 +27,8 @@ eq(TimeFormatting.abbreviated(3660), "1h 1m", "3660 → 1h 1m")
 eq(TimeFormatting.abbreviated(7200), "2h", "7200 → 2h")
 eq(TimeFormatting.abbreviated(18000), "5h", "18000 → 5h")
 eq(TimeFormatting.abbreviated(-5), "0s", "negative clamps → 0s")
+eq(TimeFormatting.abbreviated(59.2), "1m", "countdown rounds up: 59.2 → 1m")
+eq(TimeFormatting.abbreviated(1799.5), "30m", "a fresh 30m session never reads 29m")
 
 group("TimeFormatting.clock")
 eq(TimeFormatting.clock(0), "0:00", "0 → 0:00")
@@ -34,6 +36,8 @@ eq(TimeFormatting.clock(75), "1:15", "75 → 1:15")
 eq(TimeFormatting.clock(615), "10:15", "615 → 10:15")
 eq(TimeFormatting.clock(3661), "1:01:01", "3661 → 1:01:01")
 eq(TimeFormatting.clock(7325), "2:02:05", "7325 → 2:02:05")
+eq(TimeFormatting.clock(59.2), "1:00", "countdown rounds up: 59.2 → 1:00")
+eq(TimeFormatting.clock(0.4), "0:01", "displays 0:00 only when actually done")
 
 group("BatteryGuard.shouldLetNap")
 check(BatteryGuard.shouldLetNap(enabled: false, onBattery: true, percent: 5, threshold: 20) == false, "disabled never naps")
@@ -69,10 +73,16 @@ do {
     let ups: [String: Any] = [typeKey: kIOPSUPSType as String, stateKey: battPower, currentKey: 10, maximumKey: 100]
     check(BatteryGuard.powerState(fromDescriptions: [ups, charging]) == PowerState(onBattery: false, percent: 90),
           "internal battery wins over a UPS listed first")
+    check(BatteryGuard.powerState(fromDescriptions: [ups]) == PowerState(onBattery: false, percent: nil),
+          "a UPS alone is ignored — the guard protects the Mac's battery, not a UPS")
 
     let noCapacity: [String: Any] = [typeKey: internalType, stateKey: battPower]
     check(BatteryGuard.powerState(fromDescriptions: [noCapacity]) == PowerState(onBattery: true, percent: nil),
           "missing capacity keys → nil percent")
+
+    let overfull: [String: Any] = [typeKey: internalType, stateKey: acPower, currentKey: 105, maximumKey: 100]
+    check(BatteryGuard.powerState(fromDescriptions: [overfull]) == PowerState(onBattery: false, percent: 100),
+          "raw capacities over 100% clamp to 100")
 }
 
 group("BatteryGuard.currentPowerState (live IOKit)")
@@ -129,6 +139,10 @@ do {
        "Espresso — keeping your Mac awake, no limit", "active indefinite tooltip")
     eq(StatusText.toolTip(isActive: false, remaining: nil),
        "Espresso — letting your Mac nap", "idle tooltip")
+    eq(StatusText.toolTip(isActive: false, remaining: nil, napNote: "Brew finished ☕"),
+       "Espresso — Brew finished ☕", "idle tooltip surfaces the nap note")
+    eq(StatusText.toolTip(isActive: true, remaining: 60, napNote: "stale note"),
+       "Espresso — keeping your Mac awake, 1m left", "active tooltip ignores a nap note")
 }
 
 group("DurationLogic.checkStates")
@@ -198,18 +212,25 @@ do {
 group("KeepAwakeController (live IOKit assertions)")
 let c = KeepAwakeController()
 check(c.isActive == false, "starts inactive")
+check(c.isDisplayActive == false, "no display assertion before start")
 check(c.start(keepDisplayAwake: false) == true, "start succeeds and says so")
 check(c.isActive == true, "active after start")
-c.setDisplayAwake(true)
+check(c.isDisplayActive == false, "system-only start holds no display assertion")
+check(c.setDisplayAwake(true) == true, "adding the display assertion succeeds and says so")
+check(c.isDisplayActive == true, "display assertion actually held after adding")
 check(c.isActive == true, "still active after adding display assertion")
-c.setDisplayAwake(false)
+check(c.setDisplayAwake(false) == true, "removing the display assertion succeeds")
+check(c.isDisplayActive == false, "display assertion released after removing")
 check(c.isActive == true, "still active after removing display assertion (system never dropped)")
 check(c.start(keepDisplayAwake: true) == true, "re-start is idempotent (new assertions before old are released)")
 check(c.isActive == true, "still active after re-start")
+check(c.isDisplayActive == true, "re-start with display holds a display assertion")
 c.stop()
 check(c.isActive == false, "inactive after stop")
+check(c.isDisplayActive == false, "display assertion released by stop")
 let c2 = KeepAwakeController()
-c2.setDisplayAwake(true)
+check(c2.setDisplayAwake(true) == false, "requesting display awake while inactive reports failure")
+check(c2.setDisplayAwake(false) == true, "requesting display-off while inactive is trivially in effect")
 check(c2.isActive == false, "setDisplayAwake is a no-op while inactive")
 
 print(failures == 0
