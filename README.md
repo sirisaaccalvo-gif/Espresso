@@ -12,6 +12,7 @@
 <p align="center">
   <a href="https://github.com/sirisaaccalvo-gif/Espresso/actions/workflows/ci.yml"><img src="https://github.com/sirisaaccalvo-gif/Espresso/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-blue" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/Apple%20Silicon-arm64%20only-black" alt="Apple Silicon (arm64) only">
   <img src="https://img.shields.io/badge/Swift-5.9%2B-orange" alt="Swift 5.9+">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
 </p>
@@ -45,8 +46,13 @@ built-in `caffeinate`. `PreventUserIdleSystemSleep` keeps the system awake while
 display sleep; `PreventUserIdleDisplaySleep` is added when “keep display awake” is on.
 Assertions are always released on quit. Launch-at-login uses `SMAppService` (macOS 13+).
 
+## Requirements
+An **Apple Silicon Mac (M1 or later)** running **macOS 13+**. **Intel Macs are not
+supported** — the build produces (and verifies) an arm64-only binary, which cannot launch
+on Intel hardware.
+
 ## Build & run
-Requires macOS 13+ and a Swift toolchain (Xcode or Command Line Tools).
+Requires an Apple Silicon Mac on macOS 13+ and a Swift toolchain (Xcode or Command Line Tools).
 ```sh
 git clone https://github.com/sirisaaccalvo-gif/Espresso.git
 cd Espresso
@@ -68,9 +74,10 @@ IOKit assertion lifecycle. Every push runs `swift build` + these tests via GitHu
 ```
 Package.swift                 swift-tools 5.9, macOS 13+; 3 targets
 Sources/EspressoKit/          pure, testable logic (no AppKit)
-  TimeFormatting · BatteryGuard · BatteryOrchestrator · DurationLogic · KeepAwakeController
+  TimeFormatting · StatusText · BatteryGuard · BatteryOrchestrator · DurationLogic
+  SessionTimer · KeepAwakeController
 Sources/Espresso/             the menu-bar app (depends on EspressoKit)
-  EspressoMain · AppDelegate · SessionTimer · CupIconRenderer · MascotRenderer
+  EspressoMain · AppDelegate · CupIconRenderer · MascotRenderer
   ScreenshotRenderer · DurationPopover · Settings · LaunchAtLogin · SelfTest
 Tests/EspressoTests/          dependency-free test runner
 scripts/build_app.sh          builds + bundles Espresso.app
