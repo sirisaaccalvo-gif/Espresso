@@ -80,6 +80,54 @@ do {
     check(DurationLogic.parse(tag: -1, secondsOptions: opts) == nil, "negative tag → nil")
 }
 
+group("SessionTimer (wall-clock, injected clock)")
+do {
+    // No run loop spins in this runner, so the internal Timer never fires;
+    // every evaluation is driven explicitly through resync().
+    var fakeNow = Date(timeIntervalSinceReferenceDate: 1_000)
+    let st = SessionTimer(now: { fakeNow })
+    var ticks: [(remaining: TimeInterval, total: TimeInterval)] = []
+    var finishes = 0
+    st.onTick = { ticks.append(($0, $1)) }
+    st.onFinish = { finishes += 1 }
+
+    eq(st.remaining, 0, "remaining is 0 before start")
+    check(st.isRunning == false, "not running before start")
+
+    st.start(seconds: 60)
+    check(st.isRunning, "running after start")
+    eq(ticks.count, 1, "start fires a synchronous initial tick")
+    eq(ticks.last?.remaining, 60, "initial tick reports full remaining")
+    eq(ticks.last?.total, 60, "initial tick reports the total")
+
+    fakeNow = fakeNow.addingTimeInterval(10)
+    st.resync()
+    eq(st.remaining, 50, "remaining tracks the wall clock")
+    eq(ticks.last?.remaining, 50, "tick reports wall-clock remaining")
+    eq(finishes, 0, "no finish mid-session")
+
+    fakeNow = fakeNow.addingTimeInterval(3_600) // simulated sleep far past the end
+    st.resync()
+    eq(finishes, 1, "overshooting the end finishes exactly once")
+    eq(ticks.last?.remaining, 0, "final tick reports 0 remaining")
+    check(st.isRunning == false, "stopped after finish")
+    eq(st.remaining, 0, "remaining is 0 after finish")
+    st.resync()
+    eq(finishes, 1, "resync after finish is a no-op")
+
+    st.start(seconds: 30)
+    fakeNow = fakeNow.addingTimeInterval(5)
+    st.stop()
+    fakeNow = fakeNow.addingTimeInterval(100)
+    st.resync()
+    eq(finishes, 1, "stop() midway prevents the finish callback")
+
+    st.start(seconds: 45)
+    check(st.isRunning, "restart after finish works")
+    eq(st.remaining, 45, "restart resets remaining")
+    st.stop()
+}
+
 group("KeepAwakeController (live IOKit assertions)")
 let c = KeepAwakeController()
 check(c.isActive == false, "starts inactive")

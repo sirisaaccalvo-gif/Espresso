@@ -58,6 +58,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         timer.onFinish = { [weak self] in self?.deactivate() }
 
+        // A forced sleep (lid close) pauses timers; re-sync on wake so an
+        // overdue session ends immediately instead of overrunning wall-clock.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.timer.resync()
+        }
+
         buildMenu()
         refreshUI()
 
