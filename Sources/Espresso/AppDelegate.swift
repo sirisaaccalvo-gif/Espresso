@@ -232,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !ok {
             // SMAppService can be refused for an unsigned/ad-hoc build — tell the user
             // rather than silently leaving the checkbox unchanged.
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activateForEspresso()
             let alert = NSAlert()
             alert.messageText = "Couldn’t update Launch at Login"
             alert.informativeText = "macOS blocked the change. This works once Espresso is a signed build (Developer ID or App Store). For now you can add it manually in System Settings ▸ General ▸ Login Items."
@@ -242,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func showAbout() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activateForEspresso()
         let alert = NSAlert()
         alert.messageText = "Espresso ☕"
         alert.informativeText = "Keeps your Mac wide awake — one shot at a time.\n\nPick a brew (Ristretto to Bottomless), and the little cup sips it down as the timer runs. No Dock clutter; it lives in your menu bar.\n\nVersion 1.0 · by Isaac Calvo · isaaccalvo.com"
@@ -395,5 +395,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.state = (batteryThresholds[index] == Settings.lowBatteryThreshold) ? .on : .off
         }
         launchAtLoginItem?.state = LaunchAtLogin.isEnabled ? .on : .off
+    }
+}
+
+extension NSApplication {
+    /// `activate(ignoringOtherApps:)` is deprecated on macOS 14+, where activation
+    /// is cooperative anyway; coming from a status-item interaction it's granted.
+    func activateForEspresso() {
+        if #available(macOS 14.0, *) {
+            activate()
+        } else {
+            activate(ignoringOtherApps: true)
+        }
     }
 }

@@ -25,7 +25,7 @@ final class DurationPopoverController: NSObject {
             popover.performClose(nil)
             return
         }
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activateForEspresso()
         if let view = popover.contentViewController?.view {
             view.layoutSubtreeIfNeeded()
             popover.contentSize = view.fittingSize // size to content → nothing clips
