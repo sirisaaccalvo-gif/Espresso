@@ -60,7 +60,7 @@ do {
     let onBattery: [String: Any] = [typeKey: internalType, stateKey: battPower, currentKey: 47, maximumKey: 93]
     let parsed = BatteryGuard.powerState(fromDescriptions: [onBattery])
     check(parsed.onBattery == true, "internal battery discharging → on battery")
-    eq(parsed.percent, 51, "percent rounds from raw capacities (47/93 → 51)")
+    eq(parsed.percent ?? -1, 51, "percent rounds from raw capacities (47/93 → 51)")
 
     let charging: [String: Any] = [typeKey: internalType, stateKey: acPower, currentKey: 90, maximumKey: 100]
     check(BatteryGuard.powerState(fromDescriptions: [charging]) == PowerState(onBattery: false, percent: 90),
@@ -164,19 +164,19 @@ do {
     st.start(seconds: 60)
     check(st.isRunning, "running after start")
     eq(ticks.count, 1, "start fires a synchronous initial tick")
-    eq(ticks.last?.remaining, 60, "initial tick reports full remaining")
-    eq(ticks.last?.total, 60, "initial tick reports the total")
+    eq(ticks.last?.remaining ?? -1, 60, "initial tick reports full remaining")
+    eq(ticks.last?.total ?? -1, 60, "initial tick reports the total")
 
     fakeNow = fakeNow.addingTimeInterval(10)
     st.resync()
     eq(st.remaining, 50, "remaining tracks the wall clock")
-    eq(ticks.last?.remaining, 50, "tick reports wall-clock remaining")
+    eq(ticks.last?.remaining ?? -1, 50, "tick reports wall-clock remaining")
     eq(finishes, 0, "no finish mid-session")
 
     fakeNow = fakeNow.addingTimeInterval(3_600) // simulated sleep far past the end
     st.resync()
     eq(finishes, 1, "overshooting the end finishes exactly once")
-    eq(ticks.last?.remaining, 0, "final tick reports 0 remaining")
+    eq(ticks.last?.remaining ?? -1, 0, "final tick reports 0 remaining")
     check(st.isRunning == false, "stopped after finish")
     eq(st.remaining, 0, "remaining is 0 after finish")
     st.resync()
