@@ -7,6 +7,7 @@ import AppKit
 final class DurationPopoverController: NSObject {
     private let popover = NSPopover()
     private let picker = NSDatePicker()
+    private var brewButton: NSButton!
 
     /// Called with the chosen duration in seconds when the user taps Brew.
     var onStart: ((TimeInterval) -> Void)?
@@ -24,7 +25,7 @@ final class DurationPopoverController: NSObject {
             popover.performClose(nil)
             return
         }
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activateForEspresso()
         if let view = popover.contentViewController?.view {
             view.layoutSubtreeIfNeeded()
             popover.contentSize = view.fittingSize // size to content → nothing clips
@@ -47,6 +48,9 @@ final class DurationPopoverController: NSObject {
         picker.locale = Locale(identifier: "en_GB") // 24h HH:MM, no AM/PM for a duration
         picker.calendar = Calendar(identifier: .gregorian)
         picker.dateValue = referenceDate(hours: 0, minutes: 30) // default 0:30
+        picker.target = self
+        picker.action = #selector(pickerChanged)
+        picker.isContinuous = true // typed edits update Brew's enabled state as they happen
 
         let hint = NSTextField(labelWithString: "hours : minutes")
         hint.font = .systemFont(ofSize: 10)
@@ -56,6 +60,8 @@ final class DurationPopoverController: NSObject {
         brew.bezelStyle = .rounded
         brew.controlSize = .large
         brew.keyEquivalent = "\r"
+        brew.isEnabled = selectedSeconds > 0 // a 0:00 brew is meaningless
+        brewButton = brew
 
         let stack = NSStackView(views: [title, picker, hint, brew])
         stack.orientation = .vertical
@@ -108,12 +114,24 @@ final class DurationPopoverController: NSObject {
     }
     #endif
 
-    @objc private func startTapped() {
+    private var selectedSeconds: TimeInterval {
         let comps = Calendar(identifier: .gregorian).dateComponents([.hour, .minute], from: picker.dateValue)
-        let seconds = TimeInterval((comps.hour ?? 0) * 3600 + (comps.minute ?? 0) * 60)
-        popover.performClose(nil)
-        if seconds > 0 {
-            onStart?(seconds)
+        return TimeInterval((comps.hour ?? 0) * 3600 + (comps.minute ?? 0) * 60)
+    }
+
+    @objc private func pickerChanged() {
+        brewButton.isEnabled = selectedSeconds > 0
+    }
+
+    @objc private func startTapped() {
+        let seconds = selectedSeconds
+        guard seconds > 0 else {
+            // Typing "0:00" and hitting Return can fire the key equivalent before
+            // the picker action disables Brew — refuse audibly, keep the popover open.
+            NSSound.beep()
+            return
         }
+        popover.performClose(nil)
+        onStart?(seconds)
     }
 }

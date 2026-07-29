@@ -20,3 +20,11 @@ jobs:
 
       - name: Run tests
         run: swift run EspressoTests
+
+      # Release compiles different code than debug (#if ESPRESSO_DEVTOOLS strips
+      # the dev CLI modes), so build and test both configurations.
+      - name: Build (release)
+        run: swift build -c release
+
+      - name: Run tests (release)
+        run: swift run -c release EspressoTests

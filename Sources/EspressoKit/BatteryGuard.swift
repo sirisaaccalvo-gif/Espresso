@@ -26,22 +26,33 @@ public enum BatteryGuard {
     /// Live power-source snapshot via IOKit. Desktops (no battery) report onBattery=false.
     public static func currentPowerState() -> PowerState {
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef],
-              !sources.isEmpty else {
+              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef]
+        else {
             return PowerState(onBattery: false, percent: nil)
         }
-        for source in sources {
-            guard let desc = IOPSGetPowerSourceDescription(snapshot, source)?
-                .takeUnretainedValue() as? [String: Any] else { continue }
-            let state = desc[kIOPSPowerSourceStateKey as String] as? String
-            let onBattery = (state == (kIOPSBatteryPowerValue as String))
-            var percent: Int?
-            if let current = desc[kIOPSCurrentCapacityKey as String] as? Int,
-               let maximum = desc[kIOPSMaxCapacityKey as String] as? Int, maximum > 0 {
-                percent = Int((Double(current) / Double(maximum) * 100.0).rounded())
-            }
-            return PowerState(onBattery: onBattery, percent: percent)
+        let descriptions = sources.compactMap {
+            IOPSGetPowerSourceDescription(snapshot, $0)?.takeUnretainedValue() as? [String: Any]
         }
-        return PowerState(onBattery: false, percent: nil)
+        return powerState(fromDescriptions: descriptions)
+    }
+
+    /// Pure parsing/selection (unit-tested). Prefers the internal battery — a UPS
+    /// can appear first in the source list, and this feature protects the Mac's own
+    /// battery, not a UPS; desktops without a battery fall back to the first source.
+    public static func powerState(fromDescriptions descriptions: [[String: Any]]) -> PowerState {
+        let internalBattery = descriptions.first {
+            ($0[kIOPSTypeKey as String] as? String) == (kIOPSInternalBatteryType as String)
+        }
+        guard let desc = internalBattery ?? descriptions.first else {
+            return PowerState(onBattery: false, percent: nil)
+        }
+        let state = desc[kIOPSPowerSourceStateKey as String] as? String
+        let onBattery = (state == (kIOPSBatteryPowerValue as String))
+        var percent: Int?
+        if let current = desc[kIOPSCurrentCapacityKey as String] as? Int,
+           let maximum = desc[kIOPSMaxCapacityKey as String] as? Int, maximum > 0 {
+            percent = Int((Double(current) / Double(maximum) * 100.0).rounded())
+        }
+        return PowerState(onBattery: onBattery, percent: percent)
     }
 }

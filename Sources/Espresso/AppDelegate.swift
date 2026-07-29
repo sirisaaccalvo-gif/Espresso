@@ -56,7 +56,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         timer.onTick = { [weak self] remaining, total in
             self?.handleTick(remaining: remaining, total: total)
         }
-        timer.onFinish = { [weak self] in self?.deactivate() }
+        // A note distinguishes a finished brew from a manual toggle-off.
+        timer.onFinish = { [weak self] in self?.deactivate(napNote: "Brew finished ☕") }
+
+        // A forced sleep (lid close) pauses timers; re-sync on wake so an
+        // overdue session ends immediately instead of overrunning wall-clock.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.timer.resync()
+        }
 
         buildMenu()
         refreshUI()
@@ -224,7 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !ok {
             // SMAppService can be refused for an unsigned/ad-hoc build — tell the user
             // rather than silently leaving the checkbox unchanged.
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activateForEspresso()
             let alert = NSAlert()
             alert.messageText = "Couldn’t update Launch at Login"
             alert.informativeText = "macOS blocked the change. This works once Espresso is a signed build (Developer ID or App Store). For now you can add it manually in System Settings ▸ General ▸ Login Items."
@@ -234,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func showAbout() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activateForEspresso()
         let alert = NSAlert()
         alert.messageText = "Espresso ☕"
         alert.informativeText = "Keeps your Mac wide awake — one shot at a time.\n\nPick a brew (Ristretto to Bottomless), and the little cup sips it down as the timer runs. No Dock clutter; it lives in your menu bar.\n\nVersion 1.0 · by Isaac Calvo · isaaccalvo.com"
@@ -263,15 +272,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func activate(durationSeconds: TimeInterval?) {
         lastNapNote = nil
+        guard controller.start(keepDisplayAwake: Settings.keepDisplayAwake) else {
+            // IOKit refused the assertion — say so instead of claiming "Wide awake".
+            deactivate(napNote: "Couldn't keep your Mac awake ⚠️")
+            return
+        }
         isActive = true
         currentDurationSeconds = durationSeconds
-        controller.start(keepDisplayAwake: Settings.keepDisplayAwake)
         if let seconds = durationSeconds {
             timer.start(seconds: seconds)
         } else {
             timer.stop()
         }
-        if Settings.autoSleepOnLowBattery { startBatteryTimer() } else { stopBatteryTimer() }
+        if Settings.autoSleepOnLowBattery {
+            startBatteryTimer()
+            checkBattery() // don't wait 30s — a session started at low battery naps at once
+        } else {
+            stopBatteryTimer()
+        }
         refreshUI()
     }
 
@@ -292,6 +310,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let t = Timer(timeInterval: batteryPollInterval, repeats: true) { [weak self] _ in
             self?.checkBattery()
         }
+        t.tolerance = 5 // loose polling — cheaper on the very battery it protects
         RunLoop.main.add(t, forMode: .common)
         batteryTimer = t
     }
@@ -317,7 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handleTick(remaining: TimeInterval, total: TimeInterval) {
         let fraction = total > 0 ? CGFloat(remaining / total) : 1.0
         updateIcon(fill: fraction, countdown: remaining)
-        statusHeaderItem.title = "Wide awake — \(TimeFormatting.clock(remaining)) left"
+        statusHeaderItem.title = StatusText.header(isActive: true, remaining: remaining, napNote: nil)
     }
 
     private func refreshUI() {
@@ -325,14 +344,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let total = currentDurationSeconds, total > 0 {
                 let fraction = CGFloat(timer.remaining / total)
                 updateIcon(fill: fraction, countdown: timer.remaining)
-                statusHeaderItem.title = "Wide awake — \(TimeFormatting.clock(timer.remaining)) left"
+                statusHeaderItem.title = StatusText.header(isActive: true, remaining: timer.remaining, napNote: nil)
             } else {
                 updateIcon(fill: 1.0, countdown: nil)
-                statusHeaderItem.title = "Wide awake — no limit ☕"
+                statusHeaderItem.title = StatusText.header(isActive: true, remaining: nil, napNote: nil)
             }
         } else {
             updateIcon(fill: 0, countdown: nil)
-            statusHeaderItem.title = lastNapNote ?? "Letting it nap 😴"
+            statusHeaderItem.title = StatusText.header(isActive: false, remaining: nil, napNote: lastNapNote)
         }
         refreshMenuChecks()
     }
@@ -340,6 +359,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateIcon(fill: CGFloat, countdown: TimeInterval?) {
         guard let button = statusItem.button else { return }
         button.image = CupIconRenderer.cupImage(fill: fill, active: isActive)
+
+        // Hovering (or VoiceOver) answers "how long is left?" without opening the menu.
+        let tip = StatusText.toolTip(isActive: isActive, remaining: countdown)
+        button.toolTip = tip
+        button.setAccessibilityLabel(tip)
 
         if isActive, Settings.showCountdown, let countdown = countdown {
             let font = NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular)
@@ -356,17 +380,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refreshMenuChecks() {
         keepAwakeItem?.state = isActive ? .on : .off
 
-        let activeSeconds = currentDurationSeconds
-        for (index, item) in durationItems.enumerated() {
-            let seconds = durationOptions[index].1
-            var on = false
-            if isActive {
-                if seconds == 0 {
-                    on = (activeSeconds == nil)
-                } else if seconds > 0 {
-                    on = (activeSeconds == seconds)
-                }
-            }
+        let states = DurationLogic.checkStates(isActive: isActive,
+                                               activeSeconds: currentDurationSeconds,
+                                               secondsOptions: durationOptions.map { $0.1 })
+        for (item, on) in zip(durationItems, states) {
             item.state = on ? .on : .off
         }
 
@@ -377,5 +394,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.state = (batteryThresholds[index] == Settings.lowBatteryThreshold) ? .on : .off
         }
         launchAtLoginItem?.state = LaunchAtLogin.isEnabled ? .on : .off
+    }
+}
+
+extension NSApplication {
+    /// `activate(ignoringOtherApps:)` is deprecated on macOS 14+, where activation
+    /// is cooperative anyway; coming from a status-item interaction it's granted.
+    func activateForEspresso() {
+        if #available(macOS 14.0, *) {
+            activate()
+        } else {
+            activate(ignoringOtherApps: true)
+        }
     }
 }

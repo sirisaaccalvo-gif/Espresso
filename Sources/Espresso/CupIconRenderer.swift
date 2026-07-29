@@ -11,13 +11,15 @@ enum CupIconRenderer {
     ///   - active: whether keep-awake is on (adds steam wisps).
     ///   - size: pixel size of the square image (18 pt in the menu bar; larger for export).
     static func cupImage(fill: CGFloat, active: Bool, size: CGFloat = 18) -> NSImage {
-        let image = NSImage(size: NSSize(width: size, height: size))
-        image.lockFocus()
-        defer { image.unlockFocus() }
-        let transform = NSAffineTransform()
-        transform.scale(by: size / 18.0)
-        transform.concat()
-        drawCup(fill: fill, active: active)
+        // drawingHandler (not the deprecated lockFocus) re-runs per destination
+        // backing scale, so the glyph stays sharp on mixed-DPI displays.
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            let transform = NSAffineTransform()
+            transform.scale(by: size / 18.0)
+            transform.concat()
+            drawCup(fill: fill, active: active)
+            return true
+        }
         image.isTemplate = true
         return image
     }
