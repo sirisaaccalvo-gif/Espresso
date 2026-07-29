@@ -66,8 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.timer.resync()
-            self?.checkBattery()
+            // `queue: .main` already guarantees this runs on the main thread, but the
+            // observer block isn't annotated `@MainActor`, so the compiler can't see it.
+            MainActor.assumeIsolated {
+                self?.timer.resync()
+                self?.checkBattery()
+            }
         }
 
         buildMenu()
@@ -327,7 +331,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func startBatteryTimer() {
         stopBatteryTimer()
         let t = Timer(timeInterval: batteryPollInterval, repeats: true) { [weak self] _ in
-            self?.checkBattery()
+            // Scheduled on `RunLoop.main` below, so this fires on the main thread —
+            // the Timer block signature just doesn't carry that guarantee.
+            MainActor.assumeIsolated {
+                self?.checkBattery()
+            }
         }
         t.tolerance = 5 // loose polling — cheaper on the very battery it protects
         RunLoop.main.add(t, forMode: .common)

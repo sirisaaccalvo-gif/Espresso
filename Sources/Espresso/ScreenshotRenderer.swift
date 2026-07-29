@@ -7,8 +7,11 @@ import EspressoKit
 /// Programmatic so the set stays consistent and high-res; reuses the mascot + cup art.
 @MainActor
 enum ScreenshotRenderer {
-    static let W: CGFloat = 2560
-    static let H: CGFloat = 1600
+    // Plain immutable constants — `nonisolated` so they can be used in default
+    // argument expressions (e.g. `topRect(width: W)`), which are evaluated outside
+    // the actor. Without it this is a hard error under the Swift 6 language mode.
+    nonisolated static let W: CGFloat = 2560
+    nonisolated static let H: CGFloat = 1600
 
     static func make(dir: String) -> Never {
         _ = NSApplication.shared
