@@ -28,3 +28,15 @@ jobs:
 
       - name: Run tests (release)
         run: swift run -c release EspressoTests
+
+      # Espresso is Apple Silicon-only. Assemble the real bundle (exercising the
+      # Info.plist + codesign path) and assert the shipped executable is EXACTLY
+      # arm64 — an arm64-only slice is what makes the app unlaunchable on Intel.
+      - name: Build Espresso.app (arm64-only)
+        run: scripts/build_app.sh
+
+      - name: Verify Apple Silicon-only artifact
+        run: |
+          ARCHS="$(lipo -archs Espresso.app/Contents/MacOS/Espresso)"
+          echo "slices: $ARCHS"
+          test "$ARCHS" = "arm64"

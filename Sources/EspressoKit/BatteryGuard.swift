@@ -36,14 +36,15 @@ public enum BatteryGuard {
         return powerState(fromDescriptions: descriptions)
     }
 
-    /// Pure parsing/selection (unit-tested). Prefers the internal battery — a UPS
-    /// can appear first in the source list, and this feature protects the Mac's own
-    /// battery, not a UPS; desktops without a battery fall back to the first source.
+    /// Pure parsing/selection (unit-tested). Reads ONLY the internal battery — this
+    /// feature protects the Mac's own battery, not a UPS (which can appear first in,
+    /// or be the sole entry of, the source list); with no internal battery (desktops)
+    /// it reports onBattery=false so the guard never fires.
     public static func powerState(fromDescriptions descriptions: [[String: Any]]) -> PowerState {
         let internalBattery = descriptions.first {
             ($0[kIOPSTypeKey as String] as? String) == (kIOPSInternalBatteryType as String)
         }
-        guard let desc = internalBattery ?? descriptions.first else {
+        guard let desc = internalBattery else {
             return PowerState(onBattery: false, percent: nil)
         }
         let state = desc[kIOPSPowerSourceStateKey as String] as? String
@@ -51,7 +52,7 @@ public enum BatteryGuard {
         var percent: Int?
         if let current = desc[kIOPSCurrentCapacityKey as String] as? Int,
            let maximum = desc[kIOPSMaxCapacityKey as String] as? Int, maximum > 0 {
-            percent = Int((Double(current) / Double(maximum) * 100.0).rounded())
+            percent = min(100, max(0, Int((Double(current) / Double(maximum) * 100.0).rounded())))
         }
         return PowerState(onBattery: onBattery, percent: percent)
     }

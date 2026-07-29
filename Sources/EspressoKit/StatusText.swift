@@ -13,9 +13,11 @@ public enum StatusText {
         return "Wide awake — no limit ☕"
     }
 
-    /// Status-item tooltip; doubles as the accessibility label.
-    public static func toolTip(isActive: Bool, remaining: TimeInterval?) -> String {
-        guard isActive else { return "Espresso — letting your Mac nap" }
+    /// Status-item tooltip; doubles as the accessibility label. While idle, a nap
+    /// note (e.g. "Brew finished ☕") explains how the last session ended — hovering
+    /// answers "why did it stop?" without opening the menu.
+    public static func toolTip(isActive: Bool, remaining: TimeInterval?, napNote: String? = nil) -> String {
+        guard isActive else { return "Espresso — " + (napNote ?? "letting your Mac nap") }
         if let remaining {
             return "Espresso — keeping your Mac awake, \(TimeFormatting.abbreviated(remaining)) left"
         }
