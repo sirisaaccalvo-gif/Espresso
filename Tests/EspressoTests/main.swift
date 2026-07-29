@@ -112,6 +112,41 @@ do {
     check(DurationLogic.parse(tag: -1, secondsOptions: opts) == nil, "negative tag → nil")
 }
 
+group("StatusText")
+do {
+    eq(StatusText.header(isActive: true, remaining: 3661, napNote: nil),
+       "Wide awake — 1:01:01 left", "active timed header")
+    eq(StatusText.header(isActive: true, remaining: nil, napNote: nil),
+       "Wide awake — no limit ☕", "active indefinite header")
+    eq(StatusText.header(isActive: false, remaining: nil, napNote: nil),
+       "Letting it nap 😴", "idle header")
+    eq(StatusText.header(isActive: false, remaining: nil, napNote: "Napped to save battery (18%) 🪫"),
+       "Napped to save battery (18%) 🪫", "idle header surfaces the nap note")
+
+    eq(StatusText.toolTip(isActive: true, remaining: 2520),
+       "Espresso — keeping your Mac awake, 42m left", "active timed tooltip")
+    eq(StatusText.toolTip(isActive: true, remaining: nil),
+       "Espresso — keeping your Mac awake, no limit", "active indefinite tooltip")
+    eq(StatusText.toolTip(isActive: false, remaining: nil),
+       "Espresso — letting your Mac nap", "idle tooltip")
+}
+
+group("DurationLogic.checkStates")
+do {
+    // Mirrors AppDelegate's durationOptions seconds: presets, 0 = indefinite, -1 = custom.
+    let opts: [TimeInterval] = [900, 1800, 3600, 7200, 18000, 0, -1]
+    eq(DurationLogic.checkStates(isActive: false, activeSeconds: nil, secondsOptions: opts),
+       [false, false, false, false, false, false, false], "inactive → nothing checked")
+    eq(DurationLogic.checkStates(isActive: true, activeSeconds: 1800, secondsOptions: opts),
+       [false, true, false, false, false, false, false], "preset session checks its preset")
+    eq(DurationLogic.checkStates(isActive: true, activeSeconds: nil, secondsOptions: opts),
+       [false, false, false, false, false, true, false], "indefinite session checks the no-limit option")
+    eq(DurationLogic.checkStates(isActive: true, activeSeconds: 2700, secondsOptions: opts),
+       [false, false, false, false, false, false, true], "custom 45m session checks Custom brew")
+    eq(DurationLogic.checkStates(isActive: true, activeSeconds: 1800, secondsOptions: opts)[6],
+       false, "a custom duration equal to a preset lights the preset, not Custom")
+}
+
 group("SessionTimer (wall-clock, injected clock)")
 do {
     // No run loop spins in this runner, so the internal Timer never fires;

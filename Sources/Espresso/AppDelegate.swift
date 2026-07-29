@@ -56,7 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         timer.onTick = { [weak self] remaining, total in
             self?.handleTick(remaining: remaining, total: total)
         }
-        timer.onFinish = { [weak self] in self?.deactivate() }
+        // A note distinguishes a finished brew from a manual toggle-off.
+        timer.onFinish = { [weak self] in self?.deactivate(napNote: "Brew finished ☕") }
 
         // A forced sleep (lid close) pauses timers; re-sync on wake so an
         // overdue session ends immediately instead of overrunning wall-clock.
@@ -335,7 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handleTick(remaining: TimeInterval, total: TimeInterval) {
         let fraction = total > 0 ? CGFloat(remaining / total) : 1.0
         updateIcon(fill: fraction, countdown: remaining)
-        statusHeaderItem.title = "Wide awake — \(TimeFormatting.clock(remaining)) left"
+        statusHeaderItem.title = StatusText.header(isActive: true, remaining: remaining, napNote: nil)
     }
 
     private func refreshUI() {
@@ -343,14 +344,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let total = currentDurationSeconds, total > 0 {
                 let fraction = CGFloat(timer.remaining / total)
                 updateIcon(fill: fraction, countdown: timer.remaining)
-                statusHeaderItem.title = "Wide awake — \(TimeFormatting.clock(timer.remaining)) left"
+                statusHeaderItem.title = StatusText.header(isActive: true, remaining: timer.remaining, napNote: nil)
             } else {
                 updateIcon(fill: 1.0, countdown: nil)
-                statusHeaderItem.title = "Wide awake — no limit ☕"
+                statusHeaderItem.title = StatusText.header(isActive: true, remaining: nil, napNote: nil)
             }
         } else {
             updateIcon(fill: 0, countdown: nil)
-            statusHeaderItem.title = lastNapNote ?? "Letting it nap 😴"
+            statusHeaderItem.title = StatusText.header(isActive: false, remaining: nil, napNote: lastNapNote)
         }
         refreshMenuChecks()
     }
@@ -358,6 +359,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateIcon(fill: CGFloat, countdown: TimeInterval?) {
         guard let button = statusItem.button else { return }
         button.image = CupIconRenderer.cupImage(fill: fill, active: isActive)
+
+        // Hovering (or VoiceOver) answers "how long is left?" without opening the menu.
+        let tip = StatusText.toolTip(isActive: isActive, remaining: countdown)
+        button.toolTip = tip
+        button.setAccessibilityLabel(tip)
 
         if isActive, Settings.showCountdown, let countdown = countdown {
             let font = NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular)
@@ -374,17 +380,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refreshMenuChecks() {
         keepAwakeItem?.state = isActive ? .on : .off
 
-        let activeSeconds = currentDurationSeconds
-        for (index, item) in durationItems.enumerated() {
-            let seconds = durationOptions[index].1
-            var on = false
-            if isActive {
-                if seconds == 0 {
-                    on = (activeSeconds == nil)
-                } else if seconds > 0 {
-                    on = (activeSeconds == seconds)
-                }
-            }
+        let states = DurationLogic.checkStates(isActive: isActive,
+                                               activeSeconds: currentDurationSeconds,
+                                               secondsOptions: durationOptions.map { $0.1 })
+        for (item, on) in zip(durationItems, states) {
             item.state = on ? .on : .off
         }
 
