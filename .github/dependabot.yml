@@ -1,0 +1,22 @@
+# Dependabot configuration (minimal): Package.swift has zero external
+# dependencies, so the only thing worth watching is the GitHub Actions used by
+# CI. Monthly cadence, at most 2 open PRs. Security alerts + automated security
+# fixes are enabled at the repo level and are not affected by this file.
+
+version: 2
+
+updates:
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/New_York'
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'chore(actions)'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
